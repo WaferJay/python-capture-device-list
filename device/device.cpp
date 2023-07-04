@@ -102,32 +102,29 @@ PyObject* DisplayDeviceInformation(IEnumMoniker *pEnum)
 		HRESULT hr = pMoniker->BindToStorage(0, 0, IID_PPV_ARGS(&pPropBag));
 		if (FAILED(hr))
 		{
-			pMoniker->Release();
-			continue;
+			goto clean;
 		}
 
 		// Get supported resolution
 		// https://docs.microsoft.com/en-us/windows/win32/directshow/enumerating-media-types
 		// https://stackoverflow.com/questions/4359775/windows-how-to-get-cameras-supported-resolutions/4360002#4360002
-		IEnumPins *pEnum = NULL;
+		IEnumPins *pEnumPins = NULL;
 		IBaseFilter * pFilter = NULL;
 		hr = pMoniker->BindToObject(0, 0, IID_IBaseFilter, (void**)&pFilter);
 		if (FAILED(hr))
 		{
-			pMoniker->Release();
-			continue;
+			goto clean;
 		}
 
-		hr = pFilter->EnumPins(&pEnum);
+		hr = pFilter->EnumPins(&pEnumPins);
 		if (FAILED(hr))
 		{
-			pFilter->Release();
-			continue;
+			goto clean;
 		}
 
 		IPin *pPin = NULL;
 		PyObject* resolutionList = PyList_New(0); 
-		while(S_OK == pEnum->Next(1, &pPin, NULL))
+		for (; S_OK == pEnumPins->Next(1, &pPin, NULL); pPin->Release())
 		{
 			IEnumMediaTypes *pEnumMediaTypes = NULL;
 			AM_MEDIA_TYPE *mediaType = NULL;
@@ -204,8 +201,11 @@ PyObject* DisplayDeviceInformation(IEnumMoniker *pEnum)
 			VariantClear(&var);
 		}
 
-		pPropBag->Release();
-		pMoniker->Release();
+clean:
+		if (pEnumPins) pEnumPins->Release();
+		if (pFilter) pFilter->Release();
+		if (pPropBag) pPropBag->Release();
+		if (pMoniker) pMoniker->Release();
 	}
 
 	return pyList;
